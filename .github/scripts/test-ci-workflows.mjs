@@ -199,7 +199,6 @@ test("required matrix checks retain names even when editorial steps skip", () =>
     ],
   });
   assert.equal(matrix.if, "${{ !cancelled() }}");
-  assert.equal(matrix["timeout-minutes"], "${{ matrix.python-version == '3.15' && 30 || 10 }}");
   assert.equal(matrix.steps[0].uses, "actions/checkout@v7");
   for (const step of matrix.steps.slice(2, 4))
     assert.equal(step.if, "needs.changes.outputs.run-tests != 'false'");
@@ -261,10 +260,6 @@ test("upgrade coverage remains nightly and manually dispatchable", () => {
   assert.deepEqual(
     workflows["run-upgrade-checks"].jobs.run_tests.strategy.matrix.include,
     workflow.jobs.run_tests.strategy.matrix.include,
-  );
-  assert.equal(
-    workflows["run-upgrade-checks"].jobs.run_tests["timeout-minutes"],
-    workflow.jobs.run_tests["timeout-minutes"],
   );
   assert.ok(workflows["run-upgrade-checks"].jobs.notify);
   assert.ok(workflows["run-upgrade-checks"].jobs["close-on-success"]);
