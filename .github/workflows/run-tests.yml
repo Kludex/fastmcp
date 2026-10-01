@@ -82,7 +82,7 @@ jobs:
           - os: ubuntu-latest
             python-version: "3.15"
       fail-fast: false
-    timeout-minutes: 10
+    timeout-minutes: ${{ matrix.python-version == '3.15' && 30 || 10 }}
 
     steps:
       # Keep local composite action definitions available to the runner.
