@@ -195,7 +195,6 @@ test("required matrix checks retain names even when editorial steps skip", () =>
     include: [
       { os: "ubuntu-latest", "python-version": "3.13" },
       { os: "ubuntu-latest", "python-version": "3.14" },
-      { os: "ubuntu-latest", "python-version": "3.15" },
     ],
   });
   assert.equal(matrix.if, "${{ !cancelled() }}");
