@@ -878,11 +878,22 @@ async def test_monty_provider_raises_informative_error_when_missing(
         await provider.run("return 1")
 
 
-async def test_monty_provider_forwards_limits() -> None:
-    provider = MontySandboxProvider(limits={"max_duration_secs": 0.1})
+@pytest.mark.parametrize(
+    "limits",
+    [
+        {"max_duration_secs": 0.1},
+        {"max_feed_duration_secs": 0.1},
+        {"max_turn_duration_secs": 0.1},
+    ],
+)
+async def test_monty_provider_forwards_limits(limits: dict[str, float]) -> None:
+    provider = MontySandboxProvider(limits=cast(Any, limits))
+    original_limits = limits.copy()
 
     with pytest.raises(Exception, match="time limit exceeded"):
         await provider.run("x = 0\nfor _ in range(10**9):\n    x += 1")
+
+    assert limits == original_limits
 
 
 async def test_monty_provider_rejects_unsupported_limits() -> None:

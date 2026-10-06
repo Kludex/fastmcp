@@ -5,7 +5,11 @@ from collections.abc import Awaitable, Callable, Sequence
 from typing import TYPE_CHECKING, Annotated, Any, Literal, Protocol
 
 if TYPE_CHECKING:
-    from pydantic_monty import ResourceLimits
+    from pydantic_monty import ResourceLimits as MontyResourceLimits
+
+    class ResourceLimits(MontyResourceLimits, total=False):
+        max_duration_secs: float | None
+
 
 import anyio
 from mcp_types import TextContent
@@ -219,7 +223,9 @@ class MontySandboxProvider:
             ) from exc
 
         if self.limits is not None:
-            supported_limits = pydantic_monty.ResourceLimits.__annotations__.keys()
+            supported_limits = pydantic_monty.ResourceLimits.__annotations__.keys() | {
+                "max_duration_secs"
+            }
             unsupported_limits = self.limits.keys() - supported_limits
             if unsupported_limits:
                 unsupported = ", ".join(repr(key) for key in sorted(unsupported_limits))
@@ -296,9 +302,13 @@ class MontySandboxProvider:
         Isolated so the cancellation handling in `run()` can be exercised
         without a live `pydantic-monty` runtime.
         """
+        limits = dict(self.limits) if self.limits is not None else None
+        if limits is not None and "max_duration_secs" in limits:
+            limits.setdefault("max_feed_duration_secs", limits.pop("max_duration_secs"))
+
         async with (
             pydantic_monty.AsyncMonty() as pool,
-            pool.checkout(limits=self.limits) as session,
+            pool.checkout(limits=limits) as session,
         ):
             return await session.feed_run(
                 code,
