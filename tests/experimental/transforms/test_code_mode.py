@@ -881,7 +881,6 @@ async def test_monty_provider_raises_informative_error_when_missing(
 @pytest.mark.parametrize(
     "limits",
     [
-        {"max_duration_secs": 0.1},
         {"max_feed_duration_secs": 0.1},
         {"max_turn_duration_secs": 0.1},
     ],
@@ -896,12 +895,13 @@ async def test_monty_provider_forwards_limits(limits: dict[str, float]) -> None:
     assert limits == original_limits
 
 
-async def test_monty_provider_rejects_unsupported_limits() -> None:
-    provider = MontySandboxProvider(limits=cast(Any, {"max_allocations": 1}))
+@pytest.mark.parametrize("key", ["max_allocations", "max_duration_secs"])
+async def test_monty_provider_rejects_unsupported_limits(key: str) -> None:
+    provider = MontySandboxProvider(limits=cast(Any, {key: 1}))
 
     with pytest.raises(
         ValueError,
-        match=r"Unsupported Monty resource limits: 'max_allocations'.*max_memory",
+        match=rf"Unsupported Monty resource limits: {key!r}.*max_memory",
     ):
         await provider.run("return list(range(10_000))")
 
@@ -930,8 +930,8 @@ async def test_monty_provider_explicit_none_disables_limits() -> None:
 
 
 async def test_monty_provider_explicit_limits_override_defaults() -> None:
-    provider = MontySandboxProvider(limits={"max_duration_secs": 0.1})
-    assert provider.limits == {"max_duration_secs": 0.1}
+    provider = MontySandboxProvider(limits={"max_feed_duration_secs": 0.1})
+    assert provider.limits == {"max_feed_duration_secs": 0.1}
 
 
 async def test_monty_provider_default_limits_are_not_shared_between_instances() -> None:
@@ -948,10 +948,13 @@ async def test_monty_provider_default_limits_are_not_shared_between_instances() 
     assert a.limits is not _DEFAULT_LIMITS
 
     assert a.limits is not None
-    a.limits["max_duration_secs"] = 1
+    a.limits["max_feed_duration_secs"] = 1
 
-    assert b.limits == {"max_duration_secs": 30.0, "max_memory": 100_000_000}
-    assert _DEFAULT_LIMITS == {"max_duration_secs": 30.0, "max_memory": 100_000_000}
+    assert b.limits == {"max_feed_duration_secs": 30.0, "max_memory": 100_000_000}
+    assert _DEFAULT_LIMITS == {
+        "max_feed_duration_secs": 30.0,
+        "max_memory": 100_000_000,
+    }
 
 
 async def test_code_mode_max_tool_calls_default_is_50() -> None:

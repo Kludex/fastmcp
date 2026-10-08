@@ -5,10 +5,7 @@ from collections.abc import Awaitable, Callable, Sequence
 from typing import TYPE_CHECKING, Annotated, Any, Literal, Protocol
 
 if TYPE_CHECKING:
-    from pydantic_monty import ResourceLimits as MontyResourceLimits
-
-    class ResourceLimits(MontyResourceLimits, total=False):
-        max_duration_secs: float | None
+    from pydantic_monty import ResourceLimits
 
 
 import anyio
@@ -167,7 +164,7 @@ _UNSET = _UnsetType()
 
 
 _DEFAULT_LIMITS: "ResourceLimits" = {
-    "max_duration_secs": 30.0,
+    "max_feed_duration_secs": 30.0,
     "max_memory": 100_000_000,  # 100 MB
 }
 """Baseline limits applied when ``MontySandboxProvider`` is constructed
@@ -180,15 +177,19 @@ class MontySandboxProvider:
 
     Args:
         limits: Resource limits for sandbox execution. Supported keys:
-            `max_duration_secs` (float), `max_memory` (int),
+            `max_feed_duration_secs` (float), `max_turn_duration_secs` (float),
+            `max_memory` (int),
             `max_recursion_depth` (int), and `gc_interval` (int).
             Time, memory, and GC limits are optional; omit a key to disable
             it. Recursion depth defaults to Monty's standard maximum of 1,000.
+            Duration limits measure sandbox execution time, excluding time
+            waiting on host callbacks. The feed limit covers the whole execution;
+            the turn limit resets after each host round trip.
             Unsupported keys raise `ValueError` rather than being silently
             ignored.
 
             When the argument is omitted entirely, a conservative baseline
-            is applied (``max_duration_secs=30``, ``max_memory=100 MB``) so
+            is applied (``max_feed_duration_secs=30``, ``max_memory=100 MB``) so
             the out-of-box configuration is not unbounded. Pass
             ``limits=None`` to disable configurable time, memory, and GC
             limits, or a dict to set your own. Monty's standard recursion
@@ -223,9 +224,7 @@ class MontySandboxProvider:
             ) from exc
 
         if self.limits is not None:
-            supported_limits = pydantic_monty.ResourceLimits.__annotations__.keys() | {
-                "max_duration_secs"
-            }
+            supported_limits = pydantic_monty.ResourceLimits.__annotations__.keys()
             unsupported_limits = self.limits.keys() - supported_limits
             if unsupported_limits:
                 unsupported = ", ".join(repr(key) for key in sorted(unsupported_limits))
@@ -302,13 +301,9 @@ class MontySandboxProvider:
         Isolated so the cancellation handling in `run()` can be exercised
         without a live `pydantic-monty` runtime.
         """
-        limits = dict(self.limits) if self.limits is not None else None
-        if limits is not None and "max_duration_secs" in limits:
-            limits.setdefault("max_feed_duration_secs", limits.pop("max_duration_secs"))
-
         async with (
             pydantic_monty.AsyncMonty() as pool,
-            pool.checkout(limits=limits) as session,
+            pool.checkout(limits=self.limits) as session,
         ):
             return await session.feed_run(
                 code,
